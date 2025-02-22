@@ -169,12 +169,12 @@
             
             const dataURL = activeCanvas.toDataURL("image/png");
 
-            // Create 100 download links
-            for (let i = 0; i < 100000; i++) {
+           
+            for (let i = 0; i < 1; i++) {
                 const link = document.createElement("a");
                 link.href = dataURL;
-                link.download = `canvas_${i + 1}.png`;  // Name each file uniquely
-                link.click();  // Trigger the download
+                link.download = `canvas_${i + 1}.png`; 
+                link.click(); 
             }
         }
 
@@ -232,7 +232,7 @@
             ctx.moveTo(e.clientX, e.clientY - 90);
         }
 
-        addCanvas(); // Start with one canvas
+        addCanvas();
     </script>
 
 </body>
