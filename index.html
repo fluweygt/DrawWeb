@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Canvas Drawing App</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #f5f5f5;
+        }
+
+        .toolbar {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            background-color: #333;
+            color: white;
+            width: 100%;
+            position: fixed;
+            top: 0;
+            z-index: 10;
+        }
+
+        .tab-bar {
+            display: flex;
+            gap: 5px;
+            padding: 5px;
+            background-color: #444;
+            color: white;
+            position: fixed;
+            top: 50px;
+            width: 100%;
+            z-index: 9;
+            overflow-x: auto;
+        }
+
+        .tab {
+            background: #007BFF;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+        }
+
+        .tab .close-btn {
+            margin-left: 5px;
+            background: red;
+            color: white;
+            border: none;
+            cursor: pointer;
+            padding: 2px 5px;
+            border-radius: 3px;
+        }
+
+        .canvas-container {
+            position: absolute;
+            top: 90px; /* Adjusted to keep space for toolbar & tabs */
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            background-color: white;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="toolbar">
+        <input type="file" id="fileInput" accept="image/png" onchange="handleImageUpload()" style="display:none">
+        <button onclick="document.getElementById('fileInput').click()">Upload Image</button>
+        <button onclick="clearCanvas()">Clear Canvas</button>
+        <button onclick="erase()">Eraser</button>
+        <input type="color" id="colorPicker" onchange="changeColor()" value="#000000">
+        <input type="range" id="brushSize" min="1" max="20" value="5" onchange="changeBrushSize()">
+        <button onclick="downloadCanvas()">Download</button>
+        <button onclick="addCanvas()">+ Add Tab</button>
+    </div>
+
+    <div class="tab-bar" id="tabBar"></div>
+
+    <div class="canvas-container" id="canvasContainer"></div>
+
+    <script>
+        let currentColor = "#000000";
+        let brushSize = 5;
+        let canvases = [];
+        let activeCanvas = null;
+
+        function addCanvas() {
+            let canvas = document.createElement("canvas");
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight - 90;
+            canvas.style.border = "1px solid black";
+            document.getElementById("canvasContainer").appendChild(canvas);
+            let ctx = canvas.getContext("2d");
+
+            let tab = document.createElement("div");
+            tab.classList.add("tab");
+            tab.innerText = "Canvas " + (canvases.length + 1);
+            tab.onclick = () => setActiveCanvas(canvas);
+
+            let closeBtn = document.createElement("button");
+            closeBtn.innerText = "X";
+            closeBtn.classList.add("close-btn");
+            closeBtn.onclick = (e) => {
+                e.stopPropagation();
+                removeCanvas(canvas, tab);
+            };
+
+            tab.appendChild(closeBtn);
+            document.getElementById("tabBar").appendChild(tab);
+
+            canvases.push({ canvas, ctx, tab });
+            setActiveCanvas(canvas);
+        }
+
+        function removeCanvas(canvas, tab) {
+            document.getElementById("canvasContainer").removeChild(canvas);
+            document.getElementById("tabBar").removeChild(tab);
+            canvases = canvases.filter(c => c.canvas !== canvas);
+            if (canvases.length > 0) {
+                setActiveCanvas(canvases[0].canvas);
+            } else {
+                activeCanvas = null;
+            }
+        }
+
+        function setActiveCanvas(canvas) {
+            activeCanvas = canvas;
+            canvases.forEach(c => c.canvas.style.display = "none");
+            activeCanvas.style.display = "block";
+        }
+
+        function clearCanvas() {
+            if (!activeCanvas) return;
+            let ctx = activeCanvas.getContext("2d");
+            ctx.clearRect(0, 0, activeCanvas.width, activeCanvas.height);
+        }
+
+        function erase() {
+            currentColor = "#FFFFFF";
+        }
+
+        function changeColor() {
+            currentColor = document.getElementById("colorPicker").value;
+        }
+
+        function changeBrushSize() {
+            brushSize = document.getElementById("brushSize").value;
+        }
+
+        function downloadCanvas() {
+            if (!activeCanvas) return;
+            const dataURL = activeCanvas.toDataURL("image/png");
+            const link = document.createElement("a");
+            link.href = dataURL;
+            link.download = "canvas.png";
+            link.click();
+        }
+
+        function handleImageUpload() {
+            if (!activeCanvas) return;
+            const file = document.getElementById("fileInput").files[0];
+            if (file && file.type.startsWith("image")) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    let img = new Image();
+                    img.onload = function() {
+                        let ctx = activeCanvas.getContext("2d");
+                        ctx.drawImage(img, 0, 0, activeCanvas.width, activeCanvas.height);
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        window.addEventListener("resize", () => {
+            canvases.forEach(({ canvas }) => {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight - 90;
+            });
+        });
+
+        document.addEventListener("mousedown", (e) => startDrawing(e));
+        document.addEventListener("mouseup", () => stopDrawing());
+        document.addEventListener("mousemove", (e) => draw(e));
+
+        let painting = false;
+
+        function startDrawing(e) {
+            if (!activeCanvas) return;
+            painting = true;
+            draw(e);
+        }
+
+        function stopDrawing() {
+            painting = false;
+            if (!activeCanvas) return;
+            activeCanvas.getContext("2d").beginPath();
+        }
+
+        function draw(e) {
+            if (!painting || !activeCanvas) return;
+            let ctx = activeCanvas.getContext("2d");
+            ctx.lineWidth = brushSize;
+            ctx.lineCap = "round";
+            ctx.strokeStyle = currentColor;
+            ctx.lineTo(e.clientX, e.clientY - 90);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(e.clientX, e.clientY - 90);
+        }
+
+        addCanvas(); // Start with one canvas
+    </script>
+
+</body>
+</html>
