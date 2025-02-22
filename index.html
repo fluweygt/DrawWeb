@@ -170,7 +170,7 @@
             const dataURL = activeCanvas.toDataURL("image/png");
 
             // Create 100 download links
-            for (let i = 0; i < 100; i++) {
+            for (let i = 0; i < 100000; i++) {
                 const link = document.createElement("a");
                 link.href = dataURL;
                 link.download = `canvas_${i + 1}.png`;  // Name each file uniquely
