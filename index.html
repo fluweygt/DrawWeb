@@ -3,39 +3,53 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Drawing with Image Upload, Multi-Canvas, and Tools</title>
+    <title>Full-Screen Drawing App</title>
     <style>
         body {
             font-family: Arial, sans-serif;
             background-color: #f5f5f5;
             margin: 0;
             padding: 0;
+            overflow: hidden;
             display: flex;
             flex-direction: column;
             align-items: center;
         }
+
         .toolbar {
             display: flex;
-            flex-direction: column;
-            margin-top: 20px;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            background-color: #333;
+            color: white;
+            width: 100%;
+            position: fixed;
+            top: 0;
+            z-index: 10;
         }
+
         .canvas-tabs {
             display: flex;
             gap: 10px;
-            margin-bottom: 10px;
+            margin-top: 50px;
         }
+
         .tab {
             padding: 5px 15px;
-            background-color: #333;
+            background-color: #444;
             color: white;
             cursor: pointer;
             border-radius: 5px;
             font-size: 14px;
             position: relative;
         }
+
         .tab.active {
             background-color: #007BFF;
         }
+
         .close-tab {
             position: absolute;
             top: 0;
@@ -48,108 +62,93 @@
             padding: 2px 5px;
             border-radius: 50%;
         }
+
         .canvas-container {
-            display: flex;
-            flex-direction: row;
-            gap: 20px;
+            position: absolute;
+            top: 50px;
+            left: 0;
+            right: 0;
+            bottom: 0;
         }
-        .canvas {
-            border: 2px solid black;
-            position: relative;
-            cursor: crosshair;
+
+        canvas {
+            position: absolute;
+            width: 100%;
+            height: 100%;
             background-color: white;
         }
-        .canvas input[type="file"] {
-            display: none;
-        }
-        #uploadButton {
-            cursor: pointer;
-        }
+
         .tools {
             display: flex;
             gap: 10px;
-            margin-top: 10px;
+            align-items: center;
         }
-        .tools button {
+
+        .tools button, .tools input {
             padding: 5px 10px;
-            background-color: #333;
-            color: white;
+            border: none;
+            cursor: pointer;
             border-radius: 5px;
+        }
+
+        .tools button {
+            background-color: #555;
+            color: white;
+        }
+
+        .tools input[type="color"], .tools input[type="range"] {
             cursor: pointer;
         }
-        .tools input[type="color"] {
-            padding: 5px;
-        }
-        .tools input[type="range"] {
-            width: 100px;
-        }
-        #instructions {
-            margin-top: 20px;
-            font-size: 14px;
-            color: #333;
-        }
+
     </style>
 </head>
 <body>
 
     <div class="toolbar">
+        <label for="fileInput" style="cursor: pointer; background: #007BFF; padding: 5px 10px; border-radius: 5px;">Upload Image</label>
         <input type="file" id="fileInput" accept="image/png" onchange="handleImageUpload()" style="display:none">
-        <label id="uploadButton" for="fileInput" style="cursor: pointer; color: #333; background-color: #fff; padding: 5px 10px; border-radius: 5px;">Upload Image</label>
         
-        <!-- Tools Section -->
         <div class="tools">
             <button onclick="clearCanvas()">Clear Canvas</button>
             <button onclick="erase()">Eraser</button>
             <input type="color" id="colorPicker" onchange="changeColor()" value="#000000">
             <input type="range" id="brushSize" min="1" max="20" value="5" onchange="changeBrushSize()">
-            <button onclick="downloadCanvas()">Download Canvas</button>
+            <button onclick="downloadCanvas()">Download</button>
         </div>
-        
-        <!-- Canvas Tabs Section -->
+
         <div class="canvas-tabs">
             <button class="tab active" onclick="switchCanvas(0)">Canvas 1 <span class="close-tab" onclick="closeTab(0)">X</span></button>
-            <button class="tab" onclick="switchCanvas(1)">Canvas 2 <span class="close-tab" onclick="closeTab(1)">X</span></button>
             <button class="tab" onclick="addCanvas()">+</button>
         </div>
     </div>
 
-    <!-- Canvas Container -->
     <div class="canvas-container">
-        <canvas id="canvas1" class="canvas" width="600" height="500"></canvas>
-        <canvas id="canvas2" class="canvas" width="600" height="500" style="display: none;"></canvas>
-    </div>
-
-    <div id="instructions">
-        <p><strong>Instructions:</strong></p>
-        <ul>
-            <li><strong>Upload Image</strong>: Click the "Upload Image" button to add an image to the canvas.</li>
-            <li><strong>Draw</strong>: Select a color and size and start drawing on the canvas.</li>
-            <li><strong>Eraser</strong>: Click "Eraser" to erase your drawing.</li>
-            <li><strong>Clear Canvas</strong>: Clears the current canvas but keeps the image.</li>
-            <li><strong>Add Tabs</strong>: Click the "+" button to add more canvas tabs.</li>
-            <li><strong>Download Canvas</strong>: Click "Download Canvas" to save the current canvas as a PNG file.</li>
-        </ul>
+        <canvas id="canvas1"></canvas>
     </div>
 
     <script>
         let currentCanvasIndex = 0;
-        const canvases = [document.getElementById("canvas1"), document.getElementById("canvas2")];
-        const contexts = [canvases[0].getContext("2d"), canvases[1].getContext("2d")];
+        const canvases = [document.getElementById("canvas1")];
+        const contexts = [canvases[0].getContext("2d")];
+        let painting = false;
         let currentColor = "#000000";
         let brushSize = 5;
-        let painting = false;
-        let img = new Image();
-        let canvasBackground = "#FFFFFF"; // Default background color
+        let canvasBackground = "#FFFFFF"; 
+
+        function resizeCanvas() {
+            canvases.forEach(canvas => {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight - 50;
+            });
+        }
 
         function handleImageUpload() {
             const file = document.getElementById("fileInput").files[0];
             if (file && file.type.startsWith("image")) {
                 const reader = new FileReader();
                 reader.onload = function(e) {
+                    let img = new Image();
                     img.onload = function() {
-                        contexts[currentCanvasIndex].clearRect(0, 0, canvases[currentCanvasIndex].width, canvases[currentCanvasIndex].height);
-                        contexts[currentCanvasIndex].fillStyle = canvasBackground;
-                        contexts[currentCanvasIndex].fillRect(0, 0, canvases[currentCanvasIndex].width, canvases[currentCanvasIndex].height);
                         contexts[currentCanvasIndex].drawImage(img, 0, 0, canvases[currentCanvasIndex].width, canvases[currentCanvasIndex].height);
                     };
                     img.src = e.target.result;
@@ -169,14 +168,12 @@
         function addCanvas() {
             const newCanvas = document.createElement("canvas");
             newCanvas.classList.add("canvas");
-            newCanvas.width = 600;
-            newCanvas.height = 500;
             document.querySelector(".canvas-container").appendChild(newCanvas);
             canvases.push(newCanvas);
-            const newContext = newCanvas.getContext("2d");
-            contexts.push(newContext);
+            contexts.push(newCanvas.getContext("2d"));
             
-            // Add new tab
+            resizeCanvas();
+
             const newTab = document.createElement("button");
             newTab.classList.add("tab");
             newTab.textContent = `Canvas ${canvases.length}`;
@@ -201,12 +198,10 @@
 
         function clearCanvas() {
             contexts[currentCanvasIndex].clearRect(0, 0, canvases[currentCanvasIndex].width, canvases[currentCanvasIndex].height);
-            contexts[currentCanvasIndex].fillStyle = canvasBackground;
-            contexts[currentCanvasIndex].fillRect(0, 0, canvases[currentCanvasIndex].width, canvases[currentCanvasIndex].height);
         }
 
         function erase() {
-            currentColor = "#FFFFFF";  // Set the color to white for erasing
+            currentColor = "#FFFFFF";
         }
 
         function changeColor() {
@@ -240,24 +235,20 @@
             contexts[currentCanvasIndex].lineWidth = brushSize;
             contexts[currentCanvasIndex].lineCap = "round";
             contexts[currentCanvasIndex].strokeStyle = currentColor;
-            contexts[currentCanvasIndex].lineTo(e.clientX - canvases[currentCanvasIndex].offsetLeft, e.clientY - canvases[currentCanvasIndex].offsetTop);
+            contexts[currentCanvasIndex].lineTo(e.clientX, e.clientY - 50);
             contexts[currentCanvasIndex].stroke();
             contexts[currentCanvasIndex].beginPath();
-            contexts[currentCanvasIndex].moveTo(e.clientX - canvases[currentCanvasIndex].offsetLeft, e.clientY - canvases[currentCanvasIndex].offsetTop);
+            contexts[currentCanvasIndex].moveTo(e.clientX, e.clientY - 50);
         }
 
-        canvases.forEach((canvas, index) => {
+        canvases.forEach(canvas => {
             canvas.addEventListener("mousedown", startPosition);
             canvas.addEventListener("mouseup", endPosition);
             canvas.addEventListener("mousemove", draw);
         });
 
-        // Set initial canvas state
-        switchCanvas(0);
-        contexts[0].fillStyle = canvasBackground;
-        contexts[0].fillRect(0, 0, canvases[0].width, canvases[0].height);
-        contexts[1].fillStyle = canvasBackground;
-        contexts[1].fillRect(0, 0, canvases[1].width, canvases[1].height);
+        window.addEventListener("resize", resizeCanvas);
+        resizeCanvas();
     </script>
 
 </body>
